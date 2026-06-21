@@ -207,13 +207,8 @@ class LivePlayerActivity : ComponentActivity() {
         if (url.isEmpty()) return
 
         try {
-            val playerContext = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                createAttributionContext("attributionTag")
-            } else {
-                this
-            }
-            val player = ExoPlayer.Builder(playerContext)
-                .setMediaSourceFactory(DefaultMediaSourceFactory(playerContext))
+            val player = ExoPlayer.Builder(this)
+                .setMediaSourceFactory(DefaultMediaSourceFactory(this))
                 .build()
 
             // Safe content source wrapper

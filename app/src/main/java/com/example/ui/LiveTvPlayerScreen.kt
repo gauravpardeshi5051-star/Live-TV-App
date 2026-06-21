@@ -874,19 +874,12 @@ fun VideoPlayer(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val playerContext = remember(context) {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-            context.createAttributionContext("attributionTag")
-        } else {
-            context
-        }
-    }
     var isPlayerLoading by remember { mutableStateOf(true) }
     var playbackError by remember { mutableStateOf<String?>(null) }
 
     // Recreate/prepare dynamic ExoPlayer instance whenever media URL is mutated
     val exoPlayer = remember(url) {
-        ExoPlayer.Builder(playerContext).build().apply {
+        ExoPlayer.Builder(context).build().apply {
             val mediaItem = MediaItem.Builder()
                 .setUri(url)
                 // Configure HLS support cleanly for .m3u8 urls
