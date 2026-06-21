@@ -85,6 +85,9 @@ class LivePlayerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Keep screen on during video playback to prevent screensaver / sleep mode
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
         // 1. Force screen landscape locked
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
 
@@ -460,6 +463,7 @@ class LivePlayerActivity : ComponentActivity() {
                             isClickable = false
                             isFocusable = false
                             descendantFocusability = android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS
+                            keepScreenOn = true
                         }
                     },
                     modifier = Modifier
