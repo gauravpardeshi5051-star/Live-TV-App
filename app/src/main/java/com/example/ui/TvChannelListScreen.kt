@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -117,10 +116,7 @@ fun TvChannelListScreen(
                 items(channelsList, key = { it.number.toString() + "_" + it.name }) { channel ->
                     TvChannelRowItem(
                         channel = channel,
-                        onSelect = { onChannelSelect(channel) },
-                        onDelete = {
-                            channelsList = ChannelConfig.deleteChannel(context, channel.streamUrl)
-                        }
+                        onSelect = { onChannelSelect(channel) }
                     )
                 }
             }
@@ -206,191 +202,144 @@ fun TvAddButton(
 @Composable
 fun TvChannelRowItem(
     channel: LiveChannel,
-    onSelect: () -> Unit,
-    onDelete: () -> Unit
+    onSelect: () -> Unit
 ) {
-    Row(
+    var isFocused by remember { mutableStateOf(false) }
+    
+    // Explicit TV Remote focus feedback styling (Subtly scale up and glowing borders!)
+    val scaleFactor by animateFloatAsState(targetValue = if (isFocused) 1.04f else 1.00f)
+    val outlineBorderColor = if (isFocused) Color.White else Color.Transparent
+
+    Surface(
+        onClick = onSelect,
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.04f),
         modifier = Modifier
             .fillMaxWidth()
-            .height(108.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Main Focusable Channel Card
-        var isCardFocused by remember { mutableStateOf(false) }
-        val cardScale by animateFloatAsState(targetValue = if (isCardFocused) 1.03f else 1.00f)
-        val cardBorderColor = if (isCardFocused) Color.White else Color.Transparent
-
-        Surface(
-            onClick = onSelect,
-            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.03f),
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .graphicsLayer {
-                    scaleX = cardScale
-                    scaleY = cardScale
-                }
-                .onFocusChanged { isCardFocused = it.isFocused }
-                .border(
-                    width = if (isCardFocused) 3.dp else 1.dp,
-                    color = if (isCardFocused) Color.White else Color(0xFF2E2E4D),
-                    shape = RoundedCornerShape(16.dp)
-                )
-                .testTag("tv_channel_card_${channel.number}"),
-            shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(16.dp)),
-            colors = ClickableSurfaceDefaults.colors(
-                containerColor = TVCardBack,
-                focusedContainerColor = TVCardBack.copy(alpha = 0.85f)
+            .height(108.dp)
+            .graphicsLayer {
+                scaleX = scaleFactor
+                scaleY = scaleFactor
+            }
+            .onFocusChanged { isFocused = it.isFocused }
+            .border(
+                width = if (isFocused) 3.dp else 1.dp,
+                color = outlineBorderColor,
+                shape = RoundedCornerShape(16.dp)
             )
+            .testTag("tv_channel_item_${channel.number}"),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(16.dp)),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = TVCardBack,
+            focusedContainerColor = TVCardBack.copy(alpha = 0.85f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
+            // 1. Large Channel Number indicator
+            Text(
+                text = String.format("%02d", channel.number),
+                color = if (isFocused) TVAccentPurple else Color(0xFF636383),
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Black,
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .width(48.dp)
+                    .testTag("tv_channel_num_${channel.number}")
+            )
+
+            // 2. Beautiful Square/Rect Icon Box
+            Box(
+                modifier = Modifier
+                    .size(76.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFF22243C))
+                    .padding(8.dp),
+                contentAlignment = Alignment.Center
             ) {
-                // 1. Large Channel Number indicator
-                Text(
-                    text = String.format("%02d", channel.number),
-                    color = if (isCardFocused) TVAccentPurple else Color(0xFF636383),
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Black,
-                    modifier = Modifier
-                        .width(48.dp)
-                        .testTag("tv_channel_num_${channel.number}")
+                AsyncImage(
+                    model = channel.logoUrl,
+                    contentDescription = channel.name,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit
                 )
+            }
 
-                // 2. Beautiful Square/Rect Icon Box
-                Box(
-                    modifier = Modifier
-                        .size(76.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFF22243C))
-                        .padding(8.dp),
-                    contentAlignment = Alignment.Center
+            Spacer(modifier = Modifier.width(20.dp))
+
+            // 3. Information details
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = channel.name,
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.testTag("tv_channel_name_${channel.number}")
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    AsyncImage(
-                        model = channel.logoUrl,
-                        contentDescription = channel.name,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Fit
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(20.dp))
-
-                // 3. Information details
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight(),
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = channel.name,
-                        color = Color.White,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.testTag("tv_channel_name_${channel.number}")
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    // Small "Now Playing" pill
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFF2E2E4D))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
-                        // Small "Now Playing" pill
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Color(0xFF2E2E4D))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "PROGRAM",
-                                color = Color(0xFFA6A6C7),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
                         Text(
-                            text = channel.currentProgram,
-                            color = Color(0xFF9191B0),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.testTag("tv_channel_prog_${channel.number}")
-                        )
-                    }
-                }
-
-                // 4. "LIVE" Indicator Pill
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(TVLiveRed)
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Color.White)
-                        )
-                        Text(
-                            text = "LIVE",
-                            color = Color.White,
+                            text = "PROGRAM",
+                            color = Color(0xFFA6A6C7),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
+                    Text(
+                        text = channel.currentProgram,
+                        color = Color(0xFF9191B0),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.testTag("tv_channel_prog_${channel.number}")
+                    )
                 }
             }
-        }
 
-        // TV-Style Focusable Trash-bin Button
-        var isDeleteFocused by remember { mutableStateOf(false) }
-        val deleteScale by animateFloatAsState(targetValue = if (isDeleteFocused) 1.08f else 1.00f)
-
-        Surface(
-            onClick = onDelete,
-            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
-            modifier = Modifier
-                .size(108.dp)
-                .graphicsLayer {
-                    scaleX = deleteScale
-                    scaleY = deleteScale
-                }
-                .onFocusChanged { isDeleteFocused = it.isFocused }
-                .border(
-                    width = if (isDeleteFocused) 3.dp else 1.dp,
-                    color = if (isDeleteFocused) Color.White else Color(0xFF3E2235),
-                    shape = RoundedCornerShape(16.dp)
-                )
-                .testTag("tv_channel_delete_${channel.number}"),
-            shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(16.dp)),
-            colors = ClickableSurfaceDefaults.colors(
-                containerColor = Color(0xFF2C1E27),
-                focusedContainerColor = Color(0xFF4A1A24)
-            )
-        ) {
+            // 4. "LIVE" Indicator Pill
             Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(TVLiveRed)
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete Channel",
-                    tint = if (isDeleteFocused) Color.White else Color(0xFFFF5252),
-                    modifier = Modifier.size(28.dp)
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color.White)
+                    )
+                    Text(
+                        text = "LIVE",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
             }
         }
     }

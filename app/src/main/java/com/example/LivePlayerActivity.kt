@@ -24,6 +24,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -53,6 +56,14 @@ import okhttp3.OkHttpClient
 import java.io.ByteArrayInputStream
 import java.net.URL
 import java.util.zip.GZIPInputStream
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.draw.scale
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.Dp
 
 @UnstableApi
 class LivePlayerActivity : ComponentActivity() {
@@ -68,6 +79,8 @@ class LivePlayerActivity : ComponentActivity() {
     private var resolvedStreamUrl = mutableStateOf("")
     private var isResolving = mutableStateOf(true)
     private var playerError = mutableStateOf<String?>(null)
+    private val showControls = mutableStateOf(true)
+    private val lastInteractionTime = mutableStateOf(System.currentTimeMillis())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -302,31 +315,104 @@ class LivePlayerActivity : ComponentActivity() {
     }
 
     @Composable
+    private fun TVIconButton(
+        onClick: () -> Unit,
+        imageVector: androidx.compose.ui.graphics.vector.ImageVector,
+        contentDescription: String,
+        modifier: Modifier = Modifier,
+        focusRequester: FocusRequester? = null
+    ) {
+        var isFocused by remember { mutableStateOf(false) }
+        val scaleFactor by animateFloatAsState(targetValue = if (isFocused) 1.15f else 1.0f)
+        val backgroundColor = if (isFocused) Color.White else Color.Black.copy(alpha = 0.4f)
+        val contentColor = if (isFocused) Color(0xFF16172B) else Color.White
+
+        Box(
+            modifier = modifier
+                .let { if (focusRequester != null) it.focusRequester(focusRequester) else it }
+                .focusable()
+                .scale(scaleFactor)
+                .onFocusChanged { isFocused = it.isFocused }
+                .clip(CircleShape)
+                .background(backgroundColor)
+                .clickable { onClick() },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = imageVector,
+                contentDescription = contentDescription,
+                tint = contentColor,
+                modifier = Modifier
+                    .padding(10.dp)
+                    .size(24.dp)
+            )
+        }
+    }
+
+    @Composable
+    private fun TVPlayPauseButton(
+        isPlaying: Boolean,
+        onClick: () -> Unit,
+        modifier: Modifier = Modifier,
+        focusRequester: FocusRequester
+    ) {
+        var isFocused by remember { mutableStateOf(false) }
+        val scaleFactor by animateFloatAsState(targetValue = if (isFocused) 1.2f else 1.0f)
+        val backgroundColor = if (isFocused) Color.White else Color.Black.copy(alpha = 0.6f)
+        val iconColor = if (isFocused) Color(0xFF16172B) else Color.White
+
+        Box(
+            modifier = modifier
+                .focusRequester(focusRequester)
+                .focusable()
+                .scale(scaleFactor)
+                .onFocusChanged { isFocused = it.isFocused }
+                .clip(CircleShape)
+                .background(backgroundColor)
+                .clickable { onClick() },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                contentDescription = "Play/Pause",
+                tint = iconColor,
+                modifier = Modifier.size(40.dp)
+            )
+        }
+    }
+
+    @Composable
     private fun PlayerScreenContent() {
         val player = exoPlayer
         var isPlaying by remember { mutableStateOf(true) }
-        var showControls by remember { mutableStateOf(true) }
-        var systemVolume by remember { mutableStateOf(0.7f) } // Float range (0.0f - 1.0f)
+        var systemVolume by remember { mutableStateOf(1.0f) } // Internal playback volume range (0.0f - 1.0f)
         var showSettingsDialog by remember { mutableStateOf(false) }
 
-        val context = LocalContext.current
-        val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
+        val dpadFocusRequester = remember { FocusRequester() }
 
         // Start controls hide-out timer
-        LaunchedEffect(showControls, isPlaying) {
-            if (showControls && isPlaying) {
-                delay(3000)
-                showControls = false
+        LaunchedEffect(showControls.value, lastInteractionTime.value) {
+            if (showControls.value) {
+                delay(4000)
+                showControls.value = false
             }
         }
 
-        // Audio controls binding
-        LaunchedEffect(Unit) {
-            val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).toFloat()
-            if (maxVol > 0) {
-                val currentVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat()
-                systemVolume = currentVol / maxVol
+        // Auto focus request when controls show up to enable TV D-pad navigation
+        LaunchedEffect(showControls.value) {
+            if (showControls.value) {
+                try {
+                    delay(150)
+                    dpadFocusRequester.requestFocus()
+                } catch (e: Exception) {
+                    // Ignore
+                }
             }
+        }
+
+        // Sync player internal volume with our local mutableState
+        LaunchedEffect(player, systemVolume) {
+            player?.volume = systemVolume
         }
 
         // Auto-fade out error or info message after 4.5 seconds for a clean UI
@@ -347,7 +433,10 @@ class LivePlayerActivity : ComponentActivity() {
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
-                    onClick = { showControls = !showControls }
+                    onClick = {
+                        showControls.value = !showControls.value
+                        lastInteractionTime.value = System.currentTimeMillis()
+                    }
                 )
                 .testTag("full_player_container")
         ) {
@@ -368,6 +457,9 @@ class LivePlayerActivity : ComponentActivity() {
                         PlayerView(ctx).apply {
                             this.player = player
                             useController = false // Hide native Media3 controls to use custom polished overlay
+                            isClickable = false
+                            isFocusable = false
+                            descendantFocusability = android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS
                         }
                     },
                     modifier = Modifier
@@ -390,7 +482,7 @@ class LivePlayerActivity : ComponentActivity() {
 
                 // Clean Premium Video Overlays (Play/Pause, Custom Volume sliders, Settings button)
                 AnimatedVisibility(
-                    visible = showControls,
+                    visible = showControls.value,
                     enter = fadeIn() + expandVertically(),
                     exit = fadeOut() + shrinkVertically(),
                     modifier = Modifier.fillMaxSize()
@@ -409,15 +501,12 @@ class LivePlayerActivity : ComponentActivity() {
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            IconButton(
+                            TVIconButton(
                                 onClick = { finish() },
-                                modifier = Modifier
-                                    .testTag("player_back_button")
-                                    .clip(CircleShape)
-                                    .background(Color.Black.copy(alpha = 0.4f))
-                            ) {
-                                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
-                            }
+                                imageVector = Icons.Default.ArrowBack,
+                                contentDescription = "Back",
+                                modifier = Modifier.testTag("player_back_button")
+                            )
 
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally
@@ -437,24 +526,21 @@ class LivePlayerActivity : ComponentActivity() {
                                 )
                             }
 
-                            // Info / Settings trigger
-                            IconButton(
+                            TVIconButton(
                                 onClick = { showSettingsDialog = true },
-                                modifier = Modifier
-                                    .testTag("player_settings_button")
-                                    .clip(CircleShape)
-                                    .background(Color.Black.copy(alpha = 0.4f))
-                            ) {
-                                Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.White)
-                            }
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Settings",
+                                modifier = Modifier.testTag("player_settings_button")
+                            )
                         }
 
                         // 2. Play / Pause Overlay (Centered)
                         Row(
                             modifier = Modifier.align(Alignment.Center),
                             verticalAlignment = Alignment.CenterVertically
-						) {
-                            IconButton(
+                        ) {
+                            TVPlayPauseButton(
+                                isPlaying = isPlaying,
                                 onClick = {
                                     if (player.isPlaying) {
                                         player.pause()
@@ -464,19 +550,9 @@ class LivePlayerActivity : ComponentActivity() {
                                         isPlaying = true
                                     }
                                 },
-                                modifier = Modifier
-                                    .size(72.dp)
-                                    .testTag("player_play_pause_button")
-                                    .clip(CircleShape)
-                                    .background(Color.Black.copy(alpha = 0.6f))
-                            ) {
-                                Icon(
-                                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                    contentDescription = "Play/Pause",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(40.dp)
-                                )
-                            }
+                                modifier = Modifier.size(72.dp).testTag("player_play_pause_button"),
+                                focusRequester = dpadFocusRequester
+                            )
                         }
 
                         // 3. Bottom controls (Volume bar + Status metrics)
@@ -489,9 +565,20 @@ class LivePlayerActivity : ComponentActivity() {
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             // Volume control with Icon trigger
+                            var isSliderFocused by remember { mutableStateOf(false) }
+                            val sliderBorder = if (isSliderFocused) BorderStroke(1.5.dp, Color.White) else null
+                            val sliderScale by animateFloatAsState(targetValue = if (isSliderFocused) 1.05f else 1.00f)
+
                             Row(
                                 modifier = Modifier
-                                    .width(220.dp)
+                                    .width(240.dp)
+                                    .graphicsLayer {
+                                        scaleX = sliderScale
+                                        scaleY = sliderScale
+                                    }
+                                    .focusable()
+                                    .onFocusChanged { isSliderFocused = it.isFocused }
+                                    .let { if (sliderBorder != null) it.border(sliderBorder, RoundedCornerShape(12.dp)) else it }
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(Color.Black.copy(alpha = 0.5f))
                                     .padding(horizontal = 12.dp, vertical = 6.dp),
@@ -508,10 +595,7 @@ class LivePlayerActivity : ComponentActivity() {
                                     value = systemVolume,
                                     onValueChange = { newVal ->
                                         systemVolume = newVal
-                                        val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-                                        val targetVolIdx = (newVal * maxVol).toInt()
-                                        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, targetVolIdx, 0)
-                                        player.volume = newVal // Set player internal audio track volume as well
+                                        player?.volume = newVal // Set player internal audio track volume
                                     },
                                     modifier = Modifier
                                         .weight(1f)
@@ -570,5 +654,25 @@ class LivePlayerActivity : ComponentActivity() {
                 containerColor = Color(0xFF16172B)
             )
         }
+    }
+
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        val action = event.action
+        val keyCode = event.keyCode
+
+        if (!showControls.value) {
+            if (action == android.view.KeyEvent.ACTION_DOWN) {
+                if (keyCode != android.view.KeyEvent.KEYCODE_BACK) {
+                    showControls.value = true
+                    lastInteractionTime.value = System.currentTimeMillis()
+                    return true
+                }
+            }
+        } else {
+            if (action == android.view.KeyEvent.ACTION_DOWN) {
+                lastInteractionTime.value = System.currentTimeMillis()
+            }
+        }
+        return super.dispatchKeyEvent(event)
     }
 }

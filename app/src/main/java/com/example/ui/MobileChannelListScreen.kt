@@ -8,7 +8,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -133,10 +132,7 @@ fun MobileChannelListScreen(
                 items(channelsList, key = { it.number.toString() + "_" + it.name }) { channel ->
                     MobileChannelCard(
                         channel = channel,
-                        onClick = { onChannelClick(channel) },
-                        onDeleteClick = {
-                            channelsList = ChannelConfig.deleteChannel(context, channel.streamUrl)
-                        }
+                        onClick = { onChannelClick(channel) }
                     )
                 }
             }
@@ -178,8 +174,7 @@ fun MobileChannelListScreen(
 @Composable
 fun MobileChannelCard(
     channel: LiveChannel,
-    onClick: () -> Unit,
-    onDeleteClick: () -> Unit
+    onClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -253,49 +248,31 @@ fun MobileChannelCard(
             )
         }
 
-        // 4. "LIVE" Indicator and Delete Button Column
-        Column(
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier.fillMaxHeight()
+        // 4. "LIVE" Indicator Badge (Red Pill)
+        Box(
+            modifier = Modifier
+                .align(Alignment.Top)
+                .testTag("live_badge_${channel.number}")
+                .clip(RoundedCornerShape(4.dp))
+                .background(AccentRedMobile)
+                .padding(horizontal = 6.dp, vertical = 2.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .testTag("live_badge_${channel.number}")
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(AccentRedMobile)
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(6.dp)
-                            .clip(RoundedCornerShape(3.dp))
-                            .background(Color.White)
-                    )
-                    Text(
-                        text = "LIVE",
-                        color = Color.White,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-            
-            IconButton(
-                onClick = { onDeleteClick() },
-                modifier = Modifier
-                    .size(28.dp)
-                    .testTag("delete_channel_button_${channel.number}")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete Channel",
-                    tint = Color(0xFFFF5252),
-                    modifier = Modifier.size(18.dp)
+                // Mini pulse dot
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(Color.White)
+                )
+                Text(
+                    text = "LIVE",
+                    color = Color.White,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
                 )
             }
         }
