@@ -1,0 +1,6 @@
+{
+  "name": "Live IPTV Player",
+  "description": "A fast and beautiful live TV streaming player that parses M3U playlists and provides instant live channels of free, legal streaming IPTV links.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
